@@ -1,0 +1,57 @@
+workflows:
+  ios-build:
+    name: Juiceify iOS Build
+    max_build_duration: 120
+    instance_type: mac_mini_m1
+
+    environment:
+      node: 20.11.0
+      xcode: latest
+      cocoapods: default
+
+    scripts:
+      - name: Install dependencies
+        script: |
+          cd $CM_BUILD_DIR
+          npm install
+
+      - name: Expo prebuild
+        script: |
+          cd $CM_BUILD_DIR
+          npx expo prebuild --platform ios --clean --no-install
+
+      - name: Install CocoaPods
+        script: |
+          cd $CM_BUILD_DIR/ios
+          pod install --repo-update
+
+      - name: Build iOS app
+        script: |
+          cd $CM_BUILD_DIR/ios
+          xcodebuild \
+            -workspace juiceify.xcworkspace \
+            -scheme juiceify \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath $CM_BUILD_DIR/build \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Package IPA
+        script: |
+          mkdir -p $CM_EXPORT_DIR
+          APP_PATH=$(find $CM_BUILD_DIR/build -name "*.app" -not -path "*/Build/Products/Release-iphoneos/*.app" | head -1)
+          if [ -z "$APP_PATH" ]; then
+            APP_PATH=$(find $CM_BUILD_DIR/build -name "*.app" | head -1)
+          fi
+          echo "Found app at: $APP_PATH"
+          mkdir -p /tmp/Payload
+          cp -r "$APP_PATH" /tmp/Payload/
+          cd /tmp
+          zip -r $CM_EXPORT_DIR/Juiceify.ipa Payload/
+          echo "IPA created at $CM_EXPORT_DIR/Juiceify.ipa"
+
+    artifacts:
+      - $CM_EXPORT_DIR/Juiceify.ipa
