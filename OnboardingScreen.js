@@ -1,129 +1,59 @@
-/**
- * AudioPlayer.js
- *
- * Invisible component that handles actual audio playback using expo-av.
- * Supports both Google Drive MP3 streams and YouTube fallback.
- *
- * Mount this once inside MusicProvider — it watches currentSong & isPlaying
- * and controls the Audio.Sound object accordingly.
- */
-
-import { useEffect, useRef, useCallback } from 'react';
-import { Audio } from 'expo-av';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, Animated, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useMusic } from '../context/MusicContext';
-import { getStreamUrl } from '../services/GoogleDriveService';
 
-// Configure audio session for background playback
-Audio.setAudioModeAsync({
-  allowsRecordingIOS: false,
-  staysActiveInBackground: true,
-  interruptionModeIOS: 1, // DoNotMix
-  playsInSilentModeIOS: true,
-  shouldDuckAndroid: true,
-  interruptionModeAndroid: 1,
-  playThroughEarpieceAndroid: false,
-}).catch(() => {});
+export default function DriveStatusBanner() {
+  const { driveLoading, driveLoaded, driveError, driveSongCount, reloadDrive } = useMusic();
+  const opacity = useRef(new Animated.Value(0)).current;
+  const visible = driveLoading || driveError;
 
-export default function AudioPlayer() {
-  const {
-    currentSong,
-    isPlaying,
-    setIsPlaying,
-    setProgress,
-    playNext,
-    soundRef,
-  } = useMusic();
-
-  const loadedSongIdRef = useRef(null);
-  const progressTimer = useRef(null);
-
-  // ── Unload current sound ───────────────────────────────────
-  const unloadSound = useCallback(async () => {
-    if (progressTimer.current) {
-      clearInterval(progressTimer.current);
-      progressTimer.current = null;
-    }
-    if (soundRef.current) {
-      try {
-        await soundRef.current.stopAsync();
-        await soundRef.current.unloadAsync();
-      } catch (_) {}
-      soundRef.current = null;
-    }
-    loadedSongIdRef.current = null;
-  }, [soundRef]);
-
-  // ── Load and play a song ──────────────────────────────────
-  const loadAndPlay = useCallback(async (song) => {
-    await unloadSound();
-    if (!song) return;
-
-    // Determine the audio URI
-    // Priority: Drive stream URL > YouTube (no direct audio from YT without yt-dlp)
-    let uri = null;
-    if (song.source === 'googledrive' && song.driveFileId) {
-      uri = getStreamUrl(song.driveFileId);
-    } else if (song.streamUrl) {
-      uri = song.streamUrl;
-    }
-
-    if (!uri) {
-      console.warn('[AudioPlayer] No stream URL for:', song.title);
-      return;
-    }
-
-    try {
-      console.log('[AudioPlayer] Loading:', song.title);
-      const { sound } = await Audio.Sound.createAsync(
-        { uri },
-        { shouldPlay: true, progressUpdateIntervalMillis: 500 },
-        onPlaybackStatusUpdate
-      );
-      soundRef.current = sound;
-      loadedSongIdRef.current = song.id;
-    } catch (err) {
-      console.error('[AudioPlayer] Load error:', err.message);
-      setIsPlaying(false);
-    }
-  }, [unloadSound, soundRef, setIsPlaying]);
-
-  // ── Playback status callback ──────────────────────────────
-  const onPlaybackStatusUpdate = useCallback((status) => {
-    if (!status.isLoaded) return;
-
-    if (status.didJustFinish) {
-      setIsPlaying(false);
-      setProgress(0);
-      playNext();
-      return;
-    }
-
-    if (status.durationMillis && status.durationMillis > 0) {
-      setProgress(status.positionMillis / status.durationMillis);
-    }
-  }, [setIsPlaying, setProgress, playNext]);
-
-  // ── React to song changes ─────────────────────────────────
   useEffect(() => {
-    if (!currentSong) return;
-    if (currentSong.id === loadedSongIdRef.current) return; // already loaded
-    loadAndPlay(currentSong);
-  }, [currentSong]);
+    Animated.timing(opacity, {
+      toValue: visible ? 1 : 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, [visible]);
 
-  // ── React to play/pause changes ──────────────────────────
-  useEffect(() => {
-    if (!soundRef.current) return;
-    if (isPlaying) {
-      soundRef.current.playAsync().catch(() => {});
-    } else {
-      soundRef.current.pauseAsync().catch(() => {});
-    }
-  }, [isPlaying]);
+  if (!visible && !driveLoaded) return null;
 
-  // ── Cleanup on unmount ────────────────────────────────────
-  useEffect(() => {
-    return () => { unloadSound(); };
-  }, []);
-
-  return null; // Invisible component
+  return (
+    <Animated.View style={[styles.banner, { opacity }]}>
+      {driveLoading && (
+        <View style={styles.row}>
+          <Ionicons name="cloud-download-outline" size={14} color="#D7BDE2" />
+          <Text style={styles.text}>Loading songs from your Drive...</Text>
+        </View>
+      )}
+      {driveError && (
+        <TouchableOpacity style={styles.row} onPress={reloadDrive}>
+          <Ionicons name="warning-outline" size={14} color="#E74C3C" />
+          <Text style={[styles.text, { color: '#E74C3C' }]}>Drive error — tap to retry</Text>
+        </TouchableOpacity>
+      )}
+      {driveLoaded && !driveLoading && (
+        <View style={styles.row}>
+          <Ionicons name="checkmark-circle-outline" size={14} color="#2ECC71" />
+          <Text style={[styles.text, { color: '#2ECC71' }]}>
+            {driveSongCount} songs loaded from your Drive 🍇
+          </Text>
+        </View>
+      )}
+    </Animated.View>
+  );
 }
+
+const styles = StyleSheet.create({
+  banner: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0,
+    backgroundColor: 'rgba(26,10,46,0.95)',
+    paddingVertical: 8, paddingHorizontal: 16,
+    zIndex: 9999,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(155,89,182,0.3)',
+  },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  text: { color: '#D7BDE2', fontSize: 12, fontWeight: '500' },
+});

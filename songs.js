@@ -1,123 +1,142 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet,
-  Animated, Dimensions, StatusBar,
+  View, Text, TouchableOpacity, StyleSheet, Switch,
+  ScrollView, StatusBar, Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useMusic } from '../context/MusicContext';
 import { JUICE_WRLD_SONGS } from '../data/songs';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-const { width, height } = Dimensions.get('window');
-
-const FEATURES = [
-  { icon: '🎵', title: `${JUICE_WRLD_SONGS.length}+ Songs`, sub: 'Every released track in one place' },
-  { icon: '🔒', title: 'The Vault', sub: `${JUICE_WRLD_SONGS.filter(s=>s.type==='unreleased').length} unreleased & rare tracks` },
-  { icon: '🔍', title: 'Smart Search', sub: 'Find any song instantly' },
-];
-
-export default function OnboardingScreen({ onDone }) {
+export default function ProfileScreen() {
+  const { liked, recentlyPlayed } = useMusic();
   const insets = useSafeAreaInsets();
-  const glow = useRef(new Animated.Value(0)).current;
-  const fadeIn = useRef(new Animated.Value(0)).current;
-  const slideUp = useRef(new Animated.Value(40)).current;
+  const [autoplay, setAutoplay] = useState(true);
+  const [highQuality, setHighQuality] = useState(false);
+  const [notifications, setNotifications] = useState(true);
 
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeIn, { toValue: 1, duration: 800, useNativeDriver: true }),
-      Animated.spring(slideUp, { toValue: 0, tension: 50, friction: 8, useNativeDriver: true }),
-    ]).start();
+  const stats = [
+    { label: 'Songs', value: JUICE_WRLD_SONGS.length, icon: '🎵' },
+    { label: 'Unreleased', value: JUICE_WRLD_SONGS.filter(s => s.type === 'unreleased').length, icon: '🔒' },
+    { label: 'Liked', value: liked.length, icon: '💜' },
+    { label: 'Played', value: recentlyPlayed.length, icon: '▶️' },
+  ];
 
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(glow, { toValue: 1, duration: 2000, useNativeDriver: true }),
-        Animated.timing(glow, { toValue: 0, duration: 2000, useNativeDriver: true }),
-      ])
-    ).start();
-  }, []);
+  const renderToggle = (label, value, setter, subtitle) => (
+    <View style={styles.settingRow}>
+      <View style={styles.settingInfo}>
+        <Text style={styles.settingLabel}>{label}</Text>
+        {subtitle && <Text style={styles.settingSubtitle}>{subtitle}</Text>}
+      </View>
+      <Switch
+        value={value}
+        onValueChange={setter}
+        trackColor={{ false: '#2A2A35', true: 'rgba(155,89,182,0.5)' }}
+        thumbColor={value ? '#9B59B6' : '#555'}
+        ios_backgroundColor="#2A2A35"
+      />
+    </View>
+  );
 
-  const glowOpacity = glow.interpolate({ inputRange: [0, 1], outputRange: [0.3, 0.7] });
+  const renderLink = (icon, label, color = '#fff', onPress) => (
+    <TouchableOpacity style={styles.linkRow} onPress={onPress} activeOpacity={0.7}>
+      <View style={[styles.linkIcon, { backgroundColor: `${color}22` }]}>
+        <Ionicons name={icon} size={18} color={color} />
+      </View>
+      <Text style={styles.linkLabel}>{label}</Text>
+      <Ionicons name="chevron-forward" size={16} color="#444" />
+    </TouchableOpacity>
+  );
 
   return (
-    <LinearGradient colors={['#1A0A2E', '#0D0720', '#0A0A0F']} style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle="light-content" />
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
 
-      {/* Animated glow */}
-      <Animated.View style={[styles.glowCircle, { opacity: glowOpacity }]} />
-
-      <Animated.View style={[styles.content, { opacity: fadeIn, transform: [{ translateY: slideUp }] }]}>
-        {/* Logo */}
-        <View style={styles.logoWrap}>
-          <View style={styles.logoCircle}>
-            <Text style={styles.logoEmoji}>🍇</Text>
+        {/* Profile Header */}
+        <LinearGradient colors={['#1A0A2E', '#0A0A0F']} style={styles.header}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarEmoji}>🍇</Text>
           </View>
-        </View>
+          <Text style={styles.username}>999 Club Member</Text>
+          <Text style={styles.tagline}>Juice WRLD Forever</Text>
+        </LinearGradient>
 
-        <Text style={styles.appName}>Juiceify</Text>
-        <Text style={styles.tagline}>All Juice WRLD.{'\n'}All the time.</Text>
-
-        {/* Feature pills */}
-        <View style={styles.features}>
-          {FEATURES.map((f, i) => (
-            <View key={i} style={styles.featureRow}>
-              <View style={styles.featureIcon}>
-                <Text style={styles.featureIconText}>{f.icon}</Text>
-              </View>
-              <View>
-                <Text style={styles.featureTitle}>{f.title}</Text>
-                <Text style={styles.featureSub}>{f.sub}</Text>
-              </View>
+        {/* Stats Grid */}
+        <View style={styles.statsGrid}>
+          {stats.map((s, i) => (
+            <View key={i} style={styles.statCard}>
+              <Text style={styles.statIcon}>{s.icon}</Text>
+              <Text style={styles.statValue}>{s.value}</Text>
+              <Text style={styles.statLabel}>{s.label}</Text>
             </View>
           ))}
         </View>
 
-        {/* CTA */}
-        <TouchableOpacity style={styles.ctaBtn} onPress={onDone} activeOpacity={0.85}>
-          <LinearGradient colors={['#9B59B6', '#6C3483']} style={styles.ctaGrad} start={{x:0,y:0}} end={{x:1,y:0}}>
-            <Text style={styles.ctaText}>Start Listening</Text>
-            <Ionicons name="play" size={18} color="#fff" style={{ marginLeft: 8 }} />
-          </LinearGradient>
-        </TouchableOpacity>
+        {/* Settings */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Playback</Text>
+          {renderToggle('Autoplay', autoplay, setAutoplay, 'Automatically play next song')}
+          {renderToggle('High Quality', highQuality, setHighQuality, 'Use more data for better audio')}
+        </View>
 
-        <Text style={styles.disclaimer}>Streams via YouTube • Personal use only</Text>
-      </Animated.View>
-    </LinearGradient>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>App</Text>
+          {renderToggle('Notifications', notifications, setNotifications, 'New song alerts')}
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>About</Text>
+          {renderLink('musical-notes-outline', 'Song Database Info', '#9B59B6', () =>
+            Alert.alert('Song Database', `Juiceify has ${JUICE_WRLD_SONGS.length} Juice WRLD tracks including ${JUICE_WRLD_SONGS.filter(s=>s.type==='unreleased').length} unreleased songs. Songs are streamed via YouTube.`)
+          )}
+          {renderLink('logo-youtube', 'Powered by YouTube', '#FF0000', () => {})}
+          {renderLink('heart-outline', 'Made for the 999 Club', '#9B59B6', () => {})}
+          {renderLink('information-circle-outline', 'Version 1.0.0', '#888', () => {})}
+        </View>
+
+        {/* 999 Banner */}
+        <View style={styles.banner}>
+          <Text style={styles.bannerText}>999 🍇 Forever</Text>
+          <Text style={styles.bannerSub}>Jarad Higgins — Dec 2, 1998 – Dec 8, 2019</Text>
+          <Text style={styles.bannerSub2}>Legends Never Die ♾️</Text>
+        </View>
+
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  glowCircle: {
-    position: 'absolute', width: 400, height: 400,
-    borderRadius: 200, backgroundColor: 'rgba(155,89,182,0.15)',
-    top: '20%', alignSelf: 'center',
-  },
-  content: { width: '100%', alignItems: 'center', paddingHorizontal: 28 },
+  container: { flex: 1, backgroundColor: '#0A0A0F' },
 
-  logoWrap: { marginBottom: 20 },
-  logoCircle: {
-    width: 100, height: 100, borderRadius: 50,
-    backgroundColor: 'rgba(155,89,182,0.2)',
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 2, borderColor: 'rgba(155,89,182,0.5)',
-    shadowColor: '#9B59B6', shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5, shadowRadius: 20,
-  },
-  logoEmoji: { fontSize: 50 },
+  header: { alignItems: 'center', paddingTop: 24, paddingBottom: 32 },
+  avatar: { width: 88, height: 88, borderRadius: 44, backgroundColor: 'rgba(155,89,182,0.2)', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'rgba(155,89,182,0.5)', marginBottom: 14 },
+  avatarEmoji: { fontSize: 42 },
+  username: { fontSize: 22, fontWeight: '800', color: '#fff', marginBottom: 4 },
+  tagline: { fontSize: 13, color: '#9B59B6', fontWeight: '500' },
 
-  appName: { fontSize: 44, fontWeight: '900', color: '#fff', letterSpacing: -1, marginBottom: 10 },
-  tagline: { fontSize: 20, color: '#D7BDE2', textAlign: 'center', lineHeight: 28, marginBottom: 36 },
+  statsGrid: { flexDirection: 'row', marginHorizontal: 16, marginBottom: 8, gap: 10 },
+  statCard: { flex: 1, backgroundColor: '#1A1A24', borderRadius: 14, padding: 14, alignItems: 'center', borderWidth: 1, borderColor: '#2A2A35' },
+  statIcon: { fontSize: 20, marginBottom: 6 },
+  statValue: { fontSize: 20, fontWeight: '800', color: '#fff', marginBottom: 2 },
+  statLabel: { fontSize: 10, color: '#888', fontWeight: '500' },
 
-  features: { width: '100%', gap: 14, marginBottom: 40 },
-  featureRow: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 14, padding: 14, borderWidth: 1, borderColor: 'rgba(155,89,182,0.2)' },
-  featureIcon: { width: 42, height: 42, borderRadius: 12, backgroundColor: 'rgba(155,89,182,0.2)', alignItems: 'center', justifyContent: 'center' },
-  featureIconText: { fontSize: 20 },
-  featureTitle: { color: '#fff', fontSize: 15, fontWeight: '700', marginBottom: 2 },
-  featureSub: { color: '#888', fontSize: 12 },
+  section: { marginHorizontal: 16, marginTop: 20, backgroundColor: '#111118', borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: '#1E1E28' },
+  sectionTitle: { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8, fontSize: 12, fontWeight: '700', color: '#666', letterSpacing: 0.8 },
 
-  ctaBtn: { width: '100%', borderRadius: 16, overflow: 'hidden', shadowColor: '#9B59B6', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 14, marginBottom: 16 },
-  ctaGrad: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 18 },
-  ctaText: { color: '#fff', fontSize: 18, fontWeight: '800' },
+  settingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: '#1E1E28' },
+  settingInfo: { flex: 1 },
+  settingLabel: { color: '#fff', fontSize: 15, fontWeight: '500' },
+  settingSubtitle: { color: '#555', fontSize: 12, marginTop: 2 },
 
-  disclaimer: { color: '#444', fontSize: 11, textAlign: 'center' },
+  linkRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 13, borderTopWidth: 1, borderTopColor: '#1E1E28', gap: 12 },
+  linkIcon: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  linkLabel: { flex: 1, color: '#fff', fontSize: 15, fontWeight: '500' },
+
+  banner: { margin: 16, marginTop: 24, backgroundColor: 'rgba(155,89,182,0.1)', borderRadius: 16, padding: 20, alignItems: 'center', borderWidth: 1, borderColor: 'rgba(155,89,182,0.25)' },
+  bannerText: { fontSize: 22, fontWeight: '800', color: '#D7BDE2', marginBottom: 8 },
+  bannerSub: { color: '#888', fontSize: 13, marginBottom: 4, textAlign: 'center' },
+  bannerSub2: { color: '#9B59B6', fontSize: 13, fontWeight: '600' },
 });
